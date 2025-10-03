@@ -13,7 +13,7 @@ AXI (Advanced eXtensible Interface) is part of the AMBA protocol family defined 
 
 ---
 
-## 1. Introduction
+## 1. FEATURES
 - AXI is used to communicate between **Master** and **Slave**.
 - It has **five independent channels**:
   - Write Address
@@ -21,12 +21,11 @@ AXI (Advanced eXtensible Interface) is part of the AMBA protocol family defined 
   - Write Response
   - Read Address
   - Read Data
-- Features:
-  - Decoupled handshakes (VALID/READY) → independent flow control.
-  - Out-of-order transactions supported with IDs.
-  - Burst-based transfers (multiple beats per address phase).
+- Decoupled handshakes (VALID/READY) → independent flow control.
+- Out-of-order transactions supported with IDs.
+- Burst-based transfers (multiple beats per address phase).
 
-👉 **Note:** Transfer of data occurs only when **VALID (from master)** and **READY (from slave)** are both asserted.
+👉 **Note:** Transfer of data occurs only when **VALID (from master)** and **READY (from slave)** are both asserted at the same clock signal.
 
 ---
 
