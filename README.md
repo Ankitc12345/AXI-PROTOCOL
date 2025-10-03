@@ -4,10 +4,10 @@ This project contains Verilog implementations of an **AXI Master** and an **AXI 
 
 ---
 
-## 📂 AXI NOTES
+# 📂AXI (Advanced eXtensible Interface) Documentation
 
 
-# AXI (Advanced eXtensible Interface) Documentation
+
 
 AXI (Advanced eXtensible Interface) is part of the AMBA protocol family defined by ARM, widely used in SoC designs. It provides **high-performance, high-bandwidth, and low-latency** communication between master and slave components.
 
