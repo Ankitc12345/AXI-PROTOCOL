@@ -1,0 +1,224 @@
+`timescale 1ns / 1ps
+//////////////////////////////////////////////////////////////////////////////////
+// Company: 
+// Engineer: Ankit
+// 
+// Create Date: 29.09.2025 10:16:03
+// Design Name: slave
+// Module Name: code
+// Project Name: AXI_slave
+// Target Devices: 
+// Tool Versions: 
+// Description: 
+// 
+// Dependencies: 
+// 
+// Revision:
+// Revision 0.01 - File Created
+// Additional Comments:
+// 
+//////////////////////////////////////////////////////////////////////////////////
+
+
+module axi_slave #(
+    parameter ADDR_WIDTH = 32,
+    parameter DATA_WIDTH = 32,
+    parameter MEM_DEPTH  = 256, 
+    parameter ID_WIDTH   = 4
+)(
+    input  wire                  ACLK,
+    input  wire                  ARESETn,
+
+    // Write address channel
+    input  wire [ID_WIDTH-1:0]   AWID,
+    input  wire [ADDR_WIDTH-1:0] AWADDR,
+    input  wire [7:0]            AWLEN,
+    input  wire [2:0]            AWSIZE,
+    input  wire [1:0]            AWBURST,
+    input  wire                  AWVALID,
+    output reg                   AWREADY,
+
+    // Write data channel
+    input  wire [DATA_WIDTH-1:0] WDATA,
+    input  wire                  WLAST,
+    input  wire                  WVALID,
+    output reg                   WREADY,
+
+    // Write response channel
+    output reg [ID_WIDTH-1:0]    BID,
+    output reg [1:0]             BRESP,
+    output reg                   BVALID,
+    input  wire                  BREADY,
+
+    // Read address channel
+    input  wire [ID_WIDTH-1:0]   ARID,
+    input  wire [ADDR_WIDTH-1:0] ARADDR,
+    input  wire [7:0]            ARLEN,
+    input  wire [2:0]            ARSIZE,
+    input  wire [1:0]            ARBURST,
+    input  wire                  ARVALID,
+    output reg                   ARREADY,
+
+    // Read data channel
+    output reg [ID_WIDTH-1:0]    RID,
+    output reg [DATA_WIDTH-1:0]  RDATA,
+    output reg [1:0]             RRESP,
+    output reg                   RLAST,
+    output reg                   RVALID,
+    input  wire                  RREADY
+);
+
+ 
+    // Internal memory
+    reg [DATA_WIDTH-1:0] mem [0:MEM_DEPTH-1];
+
+    
+    // Write FSM States
+    localparam W_ADDR  = 2'b00;
+    localparam W_DATA  = 2'b01;
+    localparam W_RESP  = 2'b10;
+
+    reg [1:0]            wstate;
+    reg [ADDR_WIDTH-1:0] waddr;
+    reg [ID_WIDTH-1:0]   awid;
+    reg [7:0]            awlen_cnt;
+
+
+
+    always @ (posedge ACLK )  begin
+        if (!ARESETn) begin
+            wstate     <= W_ADDR;
+            AWREADY    <= 1'b0;
+            WREADY     <= 1'b0;
+            BVALID     <= 1'b0;
+            BID        <= {ID_WIDTH{1'b0}};
+            BRESP      <= 2'b00;
+            // internal signal at reset
+            waddr      <= {ADDR_WIDTH{1'b0}};
+            awid       <= {ID_WIDTH{1'b0}};
+            awlen_cnt  <= 8'd0;
+        end else begin
+
+            // // default assignments each cycle
+            // AWREADY <= 1'b0;
+            // WREADY  <= 1'b0;
+        
+            case (wstate)
+                W_ADDR: begin
+                    AWREADY <= 1;
+                    if (AWVALID && AWREADY) begin
+                        awid      <= AWID;
+                        waddr     <= AWADDR;
+                        awlen_cnt <= AWLEN;
+                        AWREADY   <= 0;
+                        wstate    <= W_DATA;
+                        
+                    end
+                end
+
+                W_DATA: begin
+                    WREADY  <= 1;
+                    if (WVALID && WREADY) begin                        
+                        mem[waddr[9:2]] <= WDATA;
+                        if (AWBURST == 2'b01 && awlen_cnt != 0)
+                            waddr <= waddr + (1 << AWSIZE);
+                        if (awlen_cnt != 0)
+                            awlen_cnt <= awlen_cnt - 1;
+                        if (WLAST)
+                            WREADY <= 0;
+                    end
+                    if (WVALID && WLAST)
+                        wstate <= W_RESP;
+                end
+
+                W_RESP: begin
+                    AWREADY <= 0;
+                    WREADY  <= 0;
+                    BVALID  <= 1;
+                    BID     <= awid;
+                    BRESP   <= 2'b01;
+                    if (BREADY) begin
+                        BVALID <= 0;
+                        BID <= 0;
+                        BRESP <=0;
+                        wstate <= W_ADDR;
+                    end
+                end
+            endcase
+        end
+    end
+
+    // Read FSM
+    localparam R_ADDR = 1'b0;
+    localparam R_DATA = 1'b1;
+
+    reg rstate;
+    reg [ADDR_WIDTH-1:0] raddr;
+    reg [ID_WIDTH-1:0]   rid_reg;
+    reg [7:0]            rlen_cnt , beat_cnt; 
+    integer j;
+    
+
+    always @(posedge ACLK ) begin
+        if (!ARESETn) begin
+            rstate  <= R_ADDR;
+            ARREADY <= 0;
+            RVALID  <= 0;
+            RID     <= 0;
+            RDATA   <= 0;
+            RRESP   <= 2'b00;
+            RLAST   <= 0;
+            
+            //internal signal
+            raddr   <= 0;
+            rid_reg <= 0;
+            rlen_cnt<= 0;
+            beat_cnt <= 8'd0;
+        end else begin
+        
+            case (rstate)
+                R_ADDR: begin
+                    
+                    ARREADY <= 1;
+                    
+                    if (ARVALID && ARREADY) begin
+                        raddr    <= ARADDR;
+                        rid_reg  <= ARID;
+                        rlen_cnt <= ARLEN;
+                        beat_cnt <= 0;
+                        ARREADY  <= 0;
+                        rstate   <= R_DATA;
+                    end
+                end
+
+                R_DATA: begin
+                RVALID<=1;
+
+                RID   <= rid_reg;
+                RRESP <= 2'b01; 
+                RDATA <= mem[raddr[9:2]]; 
+                
+                
+                if(RVALID && RREADY) begin                     
+                    //  raddr    <= raddr + (1 << ARSIZE);
+                     beat_cnt <= beat_cnt + 1;
+                end
+                
+                RLAST <= (beat_cnt == rlen_cnt -1);
+
+                if (beat_cnt == rlen_cnt) begin
+                RID <= 0;
+                RRESP <= 2'b00;
+                RDATA <= 0;
+                RVALID <=0;
+                rstate <= R_ADDR;
+
+                end
+
+                end
+                default :rstate <= R_ADDR;
+            endcase
+        end
+    end
+endmodule
+
