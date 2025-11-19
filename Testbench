@@ -1,0 +1,225 @@
+`timescale 1ns / 1ps
+//////////////////////////////////////////////////////////////////////////////////
+// Company: 
+// Engineer: Ankit
+// 
+// Create Date: 29.09.2025 10:41:12
+// Design Name: slave
+// Module Name: tb
+// Project Name: AXI_slave
+// Target Devices: 
+// Tool Versions: 
+// Description: 
+// 
+// Dependencies: 
+// 
+// Revision:
+// Revision 0.01 - File Created
+// Additional Comments:
+// 
+//////////////////////////////////////////////////////////////////////////////////
+
+
+
+
+module tb_axi_slave;
+
+    // Parameters
+    parameter ADDR_WIDTH = 32;
+    parameter DATA_WIDTH = 32;
+    parameter MEM_DEPTH  = 256;
+    parameter ID_WIDTH   = 4;
+
+    // Clock & Reset
+    reg ACLK;
+    reg ARESETn;
+
+    // Write Address Channel
+    reg  [ID_WIDTH-1:0] AWID;
+    reg  [ADDR_WIDTH-1:0] AWADDR;
+    reg  [7:0] AWLEN;
+    reg  [2:0] AWSIZE;
+    reg  [1:0] AWBURST;
+    reg  AWVALID;
+    wire AWREADY;
+
+    // Write Data Channel
+    reg  [DATA_WIDTH-1:0] WDATA;
+    reg  WLAST;
+    reg  WVALID;
+    wire WREADY;
+
+    // Write Response Channel
+    wire [ID_WIDTH-1:0] BID;
+    wire [1:0] BRESP;
+    wire BVALID;
+    reg  BREADY;
+
+    // Read Address Channel
+    reg  [ID_WIDTH-1:0] ARID;
+    reg  [ADDR_WIDTH-1:0] ARADDR;
+    reg  [7:0] ARLEN;
+    reg  [2:0] ARSIZE;
+    reg  [1:0] ARBURST;
+    reg  ARVALID;
+    wire ARREADY;
+
+    // Read Data Channel
+    wire [ID_WIDTH-1:0] RID;
+    wire [DATA_WIDTH-1:0] RDATA;
+    wire [1:0] RRESP;
+    wire RLAST;
+    wire RVALID;
+    reg  RREADY;
+
+    
+    integer i;
+    integer len;
+
+    // Instantiate the AXI Slave
+    axi_slave #(
+        .ADDR_WIDTH(ADDR_WIDTH),
+        .DATA_WIDTH(DATA_WIDTH),
+        .MEM_DEPTH(MEM_DEPTH),
+        .ID_WIDTH(ID_WIDTH)
+    ) DUT (
+        .ACLK(ACLK),
+        .ARESETn(ARESETn),
+
+        .AWID(AWID),
+        .AWADDR(AWADDR),
+        .AWLEN(AWLEN),
+        .AWSIZE(AWSIZE),
+        .AWBURST(AWBURST),
+        .AWVALID(AWVALID),
+        .AWREADY(AWREADY),
+
+        .WDATA(WDATA),
+        .WLAST(WLAST),
+        .WVALID(WVALID),
+        .WREADY(WREADY),
+
+        .BID(BID),
+        .BRESP(BRESP),
+        .BVALID(BVALID),
+        .BREADY(BREADY),
+
+        .ARID(ARID),
+        .ARADDR(ARADDR),
+        .ARLEN(ARLEN),
+        .ARSIZE(ARSIZE),
+        .ARBURST(ARBURST),
+        .ARVALID(ARVALID),
+        .ARREADY(ARREADY),
+
+        .RID(RID),
+        .RDATA(RDATA),
+        .RRESP(RRESP),
+        .RLAST(RLAST),
+        .RVALID(RVALID),
+        .RREADY(RREADY)
+    );
+
+
+    // Clock generation
+    initial ACLK = 0;
+    always #5 ACLK = ~ACLK; // 100MHz clock
+
+    // Reset generation
+    initial begin
+        ARESETn = 0;
+        #40;
+        ARESETn = 1;
+    end
+
+
+     // Main stimulus    
+    initial begin
+    // Initialize inputs
+        AWID = 0; AWADDR = 0; AWLEN = 0; AWSIZE = 0; AWBURST = 2'b00; AWVALID = 0;
+        WDATA = 0; WLAST = 0; WVALID = 0;
+        BREADY = 0;
+
+        ARID = 0; ARADDR = 0; ARLEN = 0; ARSIZE = 0; ARBURST = 2'b00; ARVALID = 0;
+        RREADY = 0;
+
+        // Wait for reset release       
+        @(posedge ARESETn);
+        
+        // Write Address handshake
+        
+        @(posedge ACLK); 
+        AWVALID  <= 1; 
+        wait (AWREADY);
+        AWID     <= 4'hA;
+        AWADDR   <= 32'h0000_0010;
+        AWLEN    <= 8'd3;        // 4-beat burst
+        len      <= 8'd3;
+        AWSIZE   <= 2;
+        AWBURST  <= 2'b01;
+                
+        @(posedge ACLK);        
+        AWVALID <= 0;
+        AWADDR  <= 0;
+        AWID    <= 0;
+        AWSIZE <= 0;
+        AWBURST <=0;
+        AWLEN <=0;
+            
+
+         
+        // Write Data 
+        
+        for (i = 0; i <= len; i = i + 1) begin
+            @(posedge ACLK);
+            WVALID <= 1;
+            WDATA  <= 32'h1111_0000 + i;
+            WLAST  <= (i == len);
+        end
+       
+        
+        @(posedge ACLK);
+        WVALID <= 0;
+        WLAST  <= 0;
+        WDATA  <= 0;
+        
+        
+        // write response 
+         
+        
+        wait (BVALID);
+        BREADY <= 1;
+        @(posedge ACLK);
+        BREADY <= 0;
+         
+         // read Address 
+        @(posedge ACLK);
+        ARVALID  <= 1;
+        wait (ARREADY);
+        ARID     <= 4'b0100;
+        ARADDR   <= 32'h0000_0010;
+        ARLEN    <= 8'd3; 
+        ARSIZE   <= 2;
+        ARBURST  <= 2'b01;
+
+        @(posedge ACLK);
+        ARVALID <= 0;
+        ARADDR  <= 0;
+        ARID    <= 0;
+        ARSIZE <= 0;
+        ARLEN <= 0;
+        ARBURST <=0;
+        
+        // Read Data 
+        wait (RVALID); 
+        RREADY <= 1;
+        
+        wait(!RVALID);
+        RREADY <= 0;
+         
+        # 100;
+         $finish;
+          
+          
+    end
+ endmodule
